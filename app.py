@@ -11,15 +11,40 @@ OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-def get_clean_label(field_name, index):
-    # Pastrojmë emrat teknikë hierarkikë si topmostSubform[0]
-    clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', field_name)
+# Emërtimet e sakta në shqip për fushat e formës W-9
+W9_LABELS = {
+    "f1_01": "1. Emri dhe Mbiemri (Name of entity/individual)",
+    "f1_02": "2. Emri i Biznesit (Business name / disregarded entity)",
+    "f1_03": "3a. Kodi i klasifikimit LLC (C, S, ose P)",
+    "f1_04": "4. Kodi i përjashtimit nga taksat (Exempt payee code)",
+    "f1_05": "4. Kodi i përjashtimit FATCA",
+    "f1_06": "5. Adresa (Rruga, Ndërtesa, Hyrja)",
+    "f1_07": "6. Qyteti, Shteti dhe Kodi Postar",
+    "f1_08": "Emri dhe adresa e kërkuesit (Opsionale)",
+    "f1_09": "7. Numri i llogarisë (Opsionale)",
+    "f1_10": "SSN - Numri i Sigurimit Shoqëror (pjesa 1)",
+    "f1_11": "SSN - Numri i Sigurimit Shoqëror (pjesa 2)",
+    "f1_12": "SSN - Numri i Sigurimit Shoqëror (pjesa 3)",
+    "f1_13": "EIN - Numri i Identifikimit të Biznesit (pjesa 1)",
+    "f1_14": "EIN - Numri i Identifikimit të Biznesit (pjesa 2)",
+}
+
+def get_clean_label(raw_name, index):
+    # Kontrollojmë nëse përputhet me emrat e fushave të W-9
+    for key, human_label in W9_LABELS.items():
+        if key in raw_name:
+            return human_label
+
+    # Pastrim i përgjithshëm për PDF-të e tjera
+    clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', raw_name)
     clean = clean.replace('.', ' ').replace('_', ' ').strip()
-    
-    # Nëse emri përsëri mbetet i paqartë apo me kode (si f1 01), vendosim etikete standarde
+
+    if "Boxes3a" in raw_name or "c1" in raw_name:
+        return f"Kutia e zgjedhjes (Option {index})"
+
     if not clean or len(clean) < 3 or clean.startswith("f1"):
-        return f"Fusha {index + 1}"
-    
+        return f"Fusha {index}"
+
     return clean.capitalize()
 
 @app.route("/")
@@ -41,7 +66,6 @@ def extract_fields():
     try:
         doc = fitz.open(filepath)
         
-        # Nëse është imazh, e konvertojmë në PDF
         if not doc.is_pdf:
             pdf_bytes = doc.convert_to_pdf()
             doc.close()
@@ -52,7 +76,6 @@ def extract_fields():
         field_list = []
         count = 0
 
-        # Lexojmë fushat interaktive
         for page in doc:
             for widget in page.widgets():
                 if widget.field_name:
@@ -67,7 +90,6 @@ def extract_fields():
 
         doc.close()
 
-        # Nëse nuk ka fusha interaktive
         if not field_list:
             field_list = [
                 {"id": "text_1", "label": "Emri dhe Mbiemri"},
