@@ -11,41 +11,39 @@ OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Emërtimet e sakta në shqip për fushat e formës W-9
-W9_LABELS = {
-    "f1_01": "1. Emri dhe Mbiemri (Name of entity/individual)",
-    "f1_02": "2. Emri i Biznesit (Business name / disregarded entity)",
-    "f1_03": "3a. Kodi i klasifikimit LLC (C, S, ose P)",
-    "f1_04": "4. Kodi i përjashtimit nga taksat (Exempt payee code)",
-    "f1_05": "4. Kodi i përjashtimit FATCA",
-    "f1_06": "5. Adresa (Rruga, Ndërtesa, Hyrja)",
-    "f1_07": "6. Qyteti, Shteti dhe Kodi Postar",
-    "f1_08": "Emri dhe adresa e kërkuesit (Opsionale)",
-    "f1_09": "7. Numri i llogarisë (Opsionale)",
-    "f1_10": "SSN - Numri i Sigurimit Shoqëror (pjesa 1)",
-    "f1_11": "SSN - Numri i Sigurimit Shoqëror (pjesa 2)",
-    "f1_12": "SSN - Numri i Sigurimit Shoqëror (pjesa 3)",
-    "f1_13": "EIN - Numri i Identifikimit të Biznesit (pjesa 1)",
-    "f1_14": "EIN - Numri i Identifikimit të Biznesit (pjesa 2)",
+# Hartëzimi i fushave të W-9 me çelësa unikë për përkthim në frontend
+W9_FIELD_MAPPING = {
+    "f1_01": {"key": "name", "section": "personal"},
+    "f1_02": {"key": "businessName", "section": "personal"},
+    "f1_03": {"key": "llcCode", "section": "tax"},
+    "f1_04": {"key": "taxExemptCode", "section": "tax"},
+    "f1_05": {"key": "fatcaCode", "section": "tax"},
+    "f1_06": {"key": "address", "section": "address"},
+    "f1_07": {"key": "cityStateZip", "section": "address"},
+    "f1_08": {"key": "requesterInfo", "section": "address"},
+    "f1_09": {"key": "accountNumber", "section": "identification"},
+    "f1_10": {"key": "ssn1", "section": "identification"},
+    "f1_11": {"key": "ssn2", "section": "identification"},
+    "f1_12": {"key": "ssn3", "section": "identification"},
+    "f1_13": {"key": "ein1", "section": "identification"},
+    "f1_14": {"key": "ein2", "section": "identification"},
 }
 
-def get_clean_label(raw_name, index):
-    # Kontrollojmë nëse përputhet me emrat e fushave të W-9
-    for key, human_label in W9_LABELS.items():
-        if key in raw_name:
-            return human_label
+def parse_widget_info(raw_name, index):
+    for field_id, info in W9_FIELD_MAPPING.items():
+        if field_id in raw_name:
+            return info["key"], info["section"]
 
-    # Pastrim i përgjithshëm për PDF-të e tjera
     clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', raw_name)
     clean = clean.replace('.', ' ').replace('_', ' ').strip()
 
     if "Boxes3a" in raw_name or "c1" in raw_name:
-        return f"Kutia e zgjedhjes (Option {index})"
+        return f"option_{index}", "tax"
 
     if not clean or len(clean) < 3 or clean.startswith("f1"):
-        return f"Fusha {index}"
+        return f"field_{index}", "general"
 
-    return clean.capitalize()
+    return clean, "general"
 
 @app.route("/")
 def index():
@@ -81,20 +79,21 @@ def extract_fields():
                 if widget.field_name:
                     count += 1
                     raw_name = widget.field_name
-                    label = get_clean_label(raw_name, count)
+                    field_key, section = parse_widget_info(raw_name, count)
                     
                     field_list.append({
                         "id": raw_name,
-                        "label": label
+                        "key": field_key,
+                        "section": section
                     })
 
         doc.close()
 
         if not field_list:
             field_list = [
-                {"id": "text_1", "label": "Emri dhe Mbiemri"},
-                {"id": "text_2", "label": "Adresa"},
-                {"id": "text_3", "label": "NIF / Numri i Identifikimit"}
+                {"id": "text_1", "key": "name", "section": "personal"},
+                {"id": "text_2", "key": "address", "section": "address"},
+                {"id": "text_3", "key": "ssn", "section": "identification"}
             ]
 
         return jsonify({

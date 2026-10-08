@@ -3,219 +3,330 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart PDF Form Assistant</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Smart PDF Assistant</title>
     <style>
-        body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            color: #f8fafc;
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border: #e2e8f0;
         }
-        .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding-bottom: 40px; }
+
+        header {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .drop-zone {
-            border: 2px dashed #6366f1;
+
+        .logo { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+
+        .lang-switch button {
+            background: none;
+            border: 1px solid var(--border);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 0.25rem;
+            transition: all 0.2s;
+        }
+
+        .lang-switch button.active, .lang-switch button:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .container { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+        .hero { text-align: center; margin-bottom: 2rem; }
+        .hero h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+        .hero p { color: #64748b; }
+
+        .upload-area {
+            background: var(--card-bg);
+            border: 2px dashed var(--border);
             border-radius: 12px;
-            padding: 35px;
-            background: rgba(99, 102, 241, 0.05);
+            padding: 2.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border 0.2s;
+            margin-bottom: 2rem;
         }
-        .btn-gradient {
-            background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
+
+        .upload-area:hover { border-color: var(--primary); }
+        .upload-area input { display: none; }
+
+        .form-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-section h3 {
+            font-size: 1.1rem;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        .field-group { margin-bottom: 1rem; }
+        .field-group label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.4rem; }
+        .field-group input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
             border: none;
-            color: white;
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
             font-weight: 600;
-        }
-        .btn-gradient:hover {
-            color: white;
-            opacity: 0.9;
-        }
-        .form-control-custom {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid #334155;
-            color: #f8fafc;
             border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1rem;
         }
-        .form-control-custom:focus {
-            background: rgba(15, 23, 42, 0.8);
-            border-color: #818cf8;
-            color: #ffffff;
-        }
+
+        .btn-submit:hover { background: var(--primary-hover); }
+        .hidden { display: none; }
+        .download-box { text-align: center; margin-top: 2rem; padding: 2rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; }
     </style>
 </head>
-<body class="d-flex flex-column justify-content-between py-4">
+<body>
+
+    <header>
+        <div class="logo">Smart PDF Assistant</div>
+        <div class="lang-switch">
+            <button onclick="setLanguage('sq')" id="lang-sq" class="active">🇦🇱 SQ</button>
+            <button onclick="setLanguage('en')" id="lang-en">🇬🇧 EN</button>
+            <button onclick="setLanguage('it')" id="lang-it">🇮🇹 IT</button>
+        </div>
+    </header>
+
     <div class="container">
-        <!-- Zgjedhja e Gjuhës -->
-        <div class="d-flex justify-content-end mb-3">
-            <select id="languageSelect" class="form-select w-auto bg-dark text-light border-secondary">
-                <option value="sq" selected>🇦🇱 Shqip</option>
-                <option value="en">🇬🇧 English</option>
-                <option value="it">🇮🇹 Italiano</option>
-            </select>
+        <div class="hero">
+            <h1 id="txt-title">Smart PDF Assistant</h1>
+            <p id="txt-subtitle">Plotësoni dokumentet tuaja PDF automatikisht pa ndryshuar formatin origjinal.</p>
         </div>
 
-        <!-- Header -->
-        <div class="text-center mb-5">
-            <h1 class="fw-bold display-5 text-transparent bg-clip-text" style="background: linear-gradient(90deg, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                <i class="fa-solid fa-file-pdf me-2"></i>Smart PDF Assistant
-            </h1>
-            <p id="txt-subtitle" class="text-secondary fs-5">Plotësoni dokumentet tuaja në mënyrë automatike pa ndryshuar formatin origjinal.</p>
+        <div class="upload-area" onclick="document.getElementById('pdf-file').click()">
+            <p id="txt-drag">Klikoni ose tërhiqni skedarin tuaj PDF këtu</p>
+            <small id="txt-support" style="color: #94a3b8;">Formatet e mbështetura: .pdf</small>
+            <input type="file" id="pdf-file" accept=".pdf" onchange="uploadPDF()">
         </div>
 
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <!-- Zona e Upload -->
-                <div class="glass-card p-4 mb-4">
-                    <form id="uploadForm">
-                        <div class="drop-zone text-center">
-                            <i class="fa-solid fa-cloud-arrow-up display-4 text-indigo mb-3" style="color: #818cf8;"></i>
-                            <h5 id="txt-drop" class="fw-normal">Zgjidhni ose tërhiqni skedarin PDF këtu</h5>
-                            <p id="txt-drop-sub" class="text-muted small">Pranohen vetëm skedarë me fusha formularit (.pdf)</p>
-                            <input type="file" id="pdfFile" accept=".pdf" class="form-control form-control-custom mt-3" required>
-                        </div>
-                        <button type="submit" id="txt-btn-analyze" class="btn btn-gradient btn-lg w-100 mt-4">
-                            <i class="fa-solid fa-wand-magic-sparkles me-2"></i>Analizo Dokumentin
-                        </button>
-                    </form>
-                </div>
+        <form id="pdf-form" class="hidden" onsubmit="submitForm(event)">
+            <div id="sections-wrapper"></div>
+            <button type="submit" class="btn-submit" id="btn-generate">Gjenero PDF-në e Plotësuar</button>
+        </form>
 
-                <!-- Indikatori i Ngarkimit -->
-                <div id="loading" class="text-center my-4 d-none">
-                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-                    <p id="txt-loading" class="mt-3 text-secondary">Bot-i po lexon strukturën e dokumentit...</p>
-                </div>
-
-                <!-- Formullari Dinamik -->
-                <div id="fieldsSection" class="glass-card p-4 mb-4 d-none">
-                    <h4 id="txt-fields-title" class="mb-4" style="color: #a855f7;"><i class="fa-solid fa-pen-to-square me-2"></i>Plotësoni informacionet:</h4>
-                    <form id="fillForm" class="row g-3"></form>
-                    <button id="submitDataBtn" class="btn btn-gradient btn-lg w-100 mt-4">
-                        <i class="fa-solid fa-check-circle me-2"></i><span id="txt-btn-generate">Rigjenero PDF-në e Plotësuar</span>
-                    </button>
-                </div>
-
-                <!-- Seksioni i Shkarkimit -->
-                <div id="downloadSection" class="glass-card p-4 text-center d-none">
-                    <i class="fa-solid fa-circle-check display-3 text-success mb-3"></i>
-                    <h3 id="txt-ready" class="fw-bold mb-3">Dokumenti juaj është gati!</h3>
-                    <a id="downloadBtn" href="#" class="btn btn-gradient btn-lg px-5">
-                        <i class="fa-solid fa-download me-2"></i><span id="txt-btn-download">Shkarko PDF-në</span>
-                    </a>
-                </div>
-            </div>
+        <div id="download-box" class="download-box hidden">
+            <h3 id="txt-success">Dokumenti u plotësua me sukses!</h3>
+            <br>
+            <a id="download-link" href="#" class="btn-submit" style="text-decoration: none; display: inline-block; width: auto;" id="btn-download">Shkarko PDF-në</a>
         </div>
     </div>
 
-    <!-- Footer me Emrin Tuaj -->
-    <footer class="text-center mt-5 text-secondary">
-        <p class="mb-0">Krijuar nga <strong class="text-light">Elio Latifllari</strong> &copy; 2026</p>
-    </footer>
-
     <script>
-        const translations = {
+        let currentLang = 'sq';
+        let currentFilename = '';
+        let currentFields = [];
+
+        const i18n = {
             sq: {
-                subtitle: "Plotësoni dokumentet tuaja në mënyrë automatike pa ndryshuar formatin origjinal.",
-                drop: "Zgjidhni ose tërhiqni skedarin PDF këtu",
-                dropSub: "Pranohen vetëm skedarë me fusha formularit (.pdf)",
-                btnAnalyze: "<i class='fa-solid fa-wand-magic-sparkles me-2'></i>Analizo Dokumentin",
-                loading: "Bot-i po lexon strukturën e dokumentit...",
-                fieldsTitle: "<i class='fa-solid fa-pen-to-square me-2'></i>Plotësoni informacionet:",
-                btnGenerate: "Rigjenero PDF-në e Plotësuar",
-                ready: "Dokumenti juaj është gati!",
-                btnDownload: "Shkarko PDF-në"
+                title: "Smart PDF Assistant",
+                subtitle: "Plotësoni dokumentet tuaja PDF automatikisht pa ndryshuar formatin origjinal.",
+                drag: "Klikoni ose tërhiqni skedarin tuaj PDF këtu",
+                support: "Formatet e mbështetura: .pdf",
+                generate: "Gjenero PDF-në e Plotësuar",
+                success: "Dokumenti u plotësua me sukses!",
+                download: "Shkarko PDF-në",
+                sections: {
+                    personal: "Informacioni Personal & Biznesi",
+                    tax: "Klasifikimi Tatimor",
+                    address: "Adresa & Vendndodhja",
+                    identification: "Numrat e Identifikimit (TIN / SSN / EIN)",
+                    general: "Fushat e Dokumentit"
+                },
+                labels: {
+                    name: "1. Emri dhe Mbiemri",
+                    businessName: "2. Emri i Biznesit",
+                    llcCode: "3a. Kodi i klasifikimit LLC (C, S, ose P)",
+                    taxExemptCode: "4. Kodi i përjashtimit nga taksat",
+                    fatcaCode: "4. Kodi i përjashtimit FATCA",
+                    address: "5. Adresa (Rruga, Ndërtesa, Hyrja)",
+                    cityStateZip: "6. Qyteti, Shteti dhe Kodi Postar",
+                    requesterInfo: "Emri dhe adresa e kërkuesit (Opsionale)",
+                    accountNumber: "7. Numri i llogarisë (Opsionale)",
+                    ssn1: "SSN (Pjesa 1)", ssn2: "SSN (Pjesa 2)", ssn3: "SSN (Pjesa 3)",
+                    ein1: "EIN (Pjesa 1)", ein2: "EIN (Pjesa 2)"
+                }
             },
             en: {
+                title: "Smart PDF Assistant",
                 subtitle: "Fill out your PDF documents automatically without changing the original format.",
-                drop: "Choose or drag and drop your PDF file here",
-                dropSub: "Only PDF form files are supported (.pdf)",
-                btnAnalyze: "<i class='fa-solid fa-wand-magic-sparkles me-2'></i>Analyze Document",
-                loading: "The bot is reading document structure...",
-                fieldsTitle: "<i class='fa-solid fa-pen-to-square me-2'></i>Fill in the information:",
-                btnGenerate: "Regenerate Completed PDF",
-                ready: "Your document is ready!",
-                btnDownload: "Download PDF"
+                drag: "Click or drag and drop your PDF file here",
+                support: "Supported formats: .pdf",
+                generate: "Generate Completed PDF",
+                success: "Document successfully completed!",
+                download: "Download PDF",
+                sections: {
+                    personal: "Personal & Business Information",
+                    tax: "Tax Classification",
+                    address: "Address & Location",
+                    identification: "Identification Numbers (TIN / SSN / EIN)",
+                    general: "Document Fields"
+                },
+                labels: {
+                    name: "1. Full Name",
+                    businessName: "2. Business Name",
+                    llcCode: "3a. LLC tax classification code",
+                    taxExemptCode: "4. Exempt payee code",
+                    fatcaCode: "4. FATCA exemption code",
+                    address: "5. Address (Street, Apt/Suite)",
+                    cityStateZip: "6. City, State, and ZIP Code",
+                    requesterInfo: "Requester's name and address (Optional)",
+                    accountNumber: "7. Account number(s) (Optional)",
+                    ssn1: "SSN (Part 1)", ssn2: "SSN (Part 2)", ssn3: "SSN (Part 3)",
+                    ein1: "EIN (Part 1)", ein2: "EIN (Part 2)"
+                }
             },
             it: {
-                subtitle: "Compila i tuoi documenti PDF automaticamente senza modificare il formato originale.",
-                drop: "Scegli o trascina qui il tuo file PDF",
-                dropSub: "Sono supportati solo file PDF con moduli (.pdf)",
-                btnAnalyze: "<i class='fa-solid fa-wand-magic-sparkles me-2'></i>Analizza Documento",
-                loading: "Il bot sta leggendo la struttura del documento...",
-                fieldsTitle: "<i class='fa-solid fa-pen-to-square me-2'></i>Compila le informazioni:",
-                btnGenerate: "Rigenera PDF Compilato",
-                ready: "Il tuo documento è pronto!",
-                btnDownload: "Scarica PDF"
+                title: "Assistente Smart PDF",
+                subtitle: "Compila automaticamente i tuoi documenti PDF senza modificare il formato originale.",
+                drag: "Clicca o trascina qui il tuo file PDF",
+                support: "Formati supportati: .pdf",
+                generate: "Genera PDF Compilato",
+                success: "Documento completato con successo!",
+                download: "Scarica PDF",
+                sections: {
+                    personal: "Informazioni Personali e Aziendali",
+                    tax: "Classificazione Fiscale",
+                    address: "Indirizzo e Posizione",
+                    identification: "Numeri di Identificazione (TIN / SSN / EIN)",
+                    general: "Campi del Documento"
+                },
+                labels: {
+                    name: "1. Nome e Cognome",
+                    businessName: "2. Ragione Sociale",
+                    llcCode: "3a. Codice classificazione LLC",
+                    taxExemptCode: "4. Codice esenzione beneficiario",
+                    fatcaCode: "4. Codice esenzione FATCA",
+                    address: "5. Indirizzo (Via, Numero, Interno)",
+                    cityStateZip: "6. Città, Stato e CAP",
+                    requesterInfo: "Nome e indirizzo del richiedente (Opzionale)",
+                    accountNumber: "7. Numero di conto (Opzionale)",
+                    ssn1: "SSN (Parte 1)", ssn2: "SSN (Parte 2)", ssn3: "SSN (Parte 3)",
+                    ein1: "EIN (Parte 1)", ein2: "EIN (Parte 2)"
+                }
             }
         };
 
         function setLanguage(lang) {
-            const t = translations[lang];
+            currentLang = lang;
+            document.querySelectorAll('.lang-switch button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`lang-${lang}`).classList.add('active');
+
+            const t = i18n[lang];
+            document.getElementById('txt-title').innerText = t.title;
             document.getElementById('txt-subtitle').innerText = t.subtitle;
-            document.getElementById('txt-drop').innerText = t.drop;
-            document.getElementById('txt-drop-sub').innerText = t.dropSub;
-            document.getElementById('txt-btn-analyze').innerHTML = t.btnAnalyze;
-            document.getElementById('txt-loading').innerText = t.loading;
-            document.getElementById('txt-fields-title').innerHTML = t.fieldsTitle;
-            document.getElementById('txt-btn-generate').innerText = t.btnGenerate;
-            document.getElementById('txt-ready').innerText = t.ready;
-            document.getElementById('txt-btn-download').innerText = t.btnDownload;
+            document.getElementById('txt-drag').innerText = t.drag;
+            document.getElementById('txt-support').innerText = t.support;
+            document.getElementById('btn-generate').innerText = t.generate;
+            document.getElementById('txt-success').innerText = t.success;
+            document.getElementById('download-link').innerText = t.download;
+
+            if (currentFields.length > 0) {
+                renderFields();
+            }
         }
 
-        document.getElementById('languageSelect').addEventListener('change', function() {
-            setLanguage(this.value);
-        });
+        async function uploadPDF() {
+            const fileInput = document.getElementById('pdf-file');
+            if (!fileInput.files[0]) return;
 
-        let currentFilename = "";
-
-        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const fileInput = document.getElementById('pdfFile');
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
 
-            document.getElementById('loading').classList.remove('d-none');
-            document.getElementById('fieldsSection').classList.add('d-none');
-            document.getElementById('downloadSection').classList.add('d-none');
+            const response = await fetch('/extract-fields', { method: 'POST', body: formData });
+            const data = await response.json();
 
-            try {
-                const response = await fetch('/extract-fields', { method: 'POST', body: formData });
-                const data = await response.json();
-                document.getElementById('loading').classList.add('d-none');
-
-                if (data.success) {
-                    currentFilename = data.filename;
-                    const fillForm = document.getElementById('fillForm');
-                    fillForm.innerHTML = '';
-
-                    data.fields.forEach(field => {
-                        fillForm.innerHTML += `
-                            <div class="col-md-6">
-                                <label class="form-label text-capitalize fw-semibold text-secondary">${field.label}</label>
-                                <input type="text" class="form-control form-control-custom pdf-input" data-field="${field.id}" placeholder="${field.label}">
-                            </div>`;
-                    });
-
-                    document.getElementById('fieldsSection').classList.remove('d-none');
-                } else {
-                    alert(data.error);
-                }
-            } catch (err) {
-                document.getElementById('loading').classList.add('d-none');
-                alert("Error / Gabim!");
+            if (data.success) {
+                currentFilename = data.filename;
+                currentFields = data.fields;
+                renderFields();
+                document.getElementById('pdf-form').classList.remove('hidden');
+            } else {
+                alert(data.error);
             }
-        });
+        }
 
-        document.getElementById('submitDataBtn').addEventListener('click', async function() {
-            const inputs = {};
-            document.querySelectorAll('.pdf-input').forEach(input => {
-                inputs[input.getAttribute('data-field')] = input.value;
+        function renderFields() {
+            const wrapper = document.getElementById('sections-wrapper');
+            wrapper.innerHTML = '';
+
+            const sections = {};
+            currentFields.forEach(f => {
+                const sec = f.section || 'general';
+                if (!sections[sec]) sections[sec] = [];
+                sections[sec].push(f);
             });
+
+            const t = i18n[currentLang];
+
+            for (const [secKey, fields] of Object.entries(sections)) {
+                const secDiv = document.createElement('div');
+                secDiv.className = 'form-section';
+
+                const title = document.createElement('h3');
+                title.innerText = t.sections[secKey] || t.sections.general;
+                secDiv.appendChild(title);
+
+                const grid = document.createElement('div');
+                grid.className = 'grid-2';
+
+                fields.forEach(f => {
+                    const group = document.createElement('div');
+                    group.className = 'field-group';
+
+                    const labelText = t.labels[f.key] || f.key;
+                    group.innerHTML = `
+                        <label>${labelText}</label>
+                        <input type="text" name="${f.id}" placeholder="...">
+                    `;
+                    grid.appendChild(group);
+                });
+
+                secDiv.appendChild(grid);
+                wrapper.appendChild(secDiv);
+            }
+        }
+
+        async function submitForm(e) {
+            e.preventDefault();
+            const inputs = {};
+            const formData = new FormData(e.target);
+            formData.forEach((value, key) => { inputs[key] = value; });
 
             const response = await fetch('/fill-pdf', {
                 method: 'POST',
@@ -225,13 +336,12 @@
 
             const data = await response.json();
             if (data.success) {
-                document.getElementById('downloadBtn').href = data.download_url;
-                document.getElementById('downloadSection').classList.remove('d-none');
+                document.getElementById('download-link').href = data.download_url;
+                document.getElementById('download-box').classList.remove('hidden');
             } else {
                 alert(data.error);
             }
-        });
+        }
     </script>
 </body>
 </html>
-
