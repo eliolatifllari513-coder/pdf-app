@@ -28,15 +28,31 @@ def extract_fields():
 
     try:
         reader = PdfReader(filepath)
-        fields = reader.get_fields()
+        fields_dict = {}
 
-        if not fields:
+        # Mënyra 1: Përdor get_fields() standard
+        extracted_fields = reader.get_fields()
+        if extracted_fields:
+            for key, field_info in extracted_fields.items():
+                fields_dict[key] = key
+
+        # Mënyra 2: Kërko direkt te Annotations të çdo faqeje (për AcroForms të fshehura)
+        for page in reader.pages:
+            if "/Annots" in page:
+                for annot in page["/Annots"]:
+                    obj = annot.get_object()
+                    if obj.get("/FT"):  # Nëse është fushë forme (Field Type)
+                        field_name = obj.get("/T")
+                        if field_name and field_name not in fields_dict:
+                            fields_dict[field_name] = field_name
+
+        if not fields_dict:
             return jsonify({
                 "error": "Ky PDF nuk përmban fusha interaktive për plotësim."
             }), 400
 
         field_list = []
-        for key, field_info in fields.items():
+        for key in fields_dict.keys():
             clean_label = key.split('.')[-1].split('[')[0].replace('_', ' ')
             field_list.append({
                 "id": key,
@@ -87,4 +103,3 @@ def download(filename):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
