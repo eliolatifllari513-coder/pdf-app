@@ -1,4 +1,5 @@
 import os
+import re
 import fitz  # PyMuPDF
 from flask import Flask, render_template, request, send_file, jsonify
 
@@ -9,6 +10,17 @@ OUTPUT_FOLDER = 'outputs'
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+def get_clean_label(field_name, index):
+    # Pastrojmë emrat teknikë hierarkikë si topmostSubform[0]
+    clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', field_name)
+    clean = clean.replace('.', ' ').replace('_', ' ').strip()
+    
+    # Nëse emri përsëri mbetet i paqartë apo me kode (si f1 01), vendosim etikete standarde
+    if not clean or len(clean) < 3 or clean.startswith("f1"):
+        return f"Fusha {index + 1}"
+    
+    return clean.capitalize()
 
 @app.route("/")
 def index():
@@ -27,10 +39,9 @@ def extract_fields():
     file.save(filepath)
 
     try:
-        # Hap skedarin me PyMuPDF (pranon PDF dhe Imazhe si PNG, JPG)
         doc = fitz.open(filepath)
         
-        # Nëse është imazh, e konverton automatikisht në PDF
+        # Nëse është imazh, e konvertojmë në PDF
         if not doc.is_pdf:
             pdf_bytes = doc.convert_to_pdf()
             doc.close()
@@ -39,27 +50,30 @@ def extract_fields():
             doc.save(filepath)
 
         field_list = []
-        has_acroform = False
+        count = 0
 
-        # 1. Provojmë së pari të gjejmë fusha interaktive (nëse ka)
+        # Lexojmë fushat interaktive
         for page in doc:
             for widget in page.widgets():
                 if widget.field_name:
-                    has_acroform = True
+                    count += 1
+                    raw_name = widget.field_name
+                    label = get_clean_label(raw_name, count)
+                    
                     field_list.append({
-                        "id": widget.field_name,
-                        "label": widget.field_name.replace('_', ' ')
+                        "id": raw_name,
+                        "label": label
                     })
 
-        # 2. Nëse NUK ka fusha interaktive, krijojmë fusha universale sipas tekstit/koordinatave
-        if not has_acroform:
-            field_list = [
-                {"id": "text_1", "label": "Tekst në krye (Top)"},
-                {"id": "text_2", "label": "Tekst në mes (Center)"},
-                {"id": "text_3", "label": "Tekst në fund (Bottom)"}
-            ]
-
         doc.close()
+
+        # Nëse nuk ka fusha interaktive
+        if not field_list:
+            field_list = [
+                {"id": "text_1", "label": "Emri dhe Mbiemri"},
+                {"id": "text_2", "label": "Adresa"},
+                {"id": "text_3", "label": "NIF / Numri i Identifikimit"}
+            ]
 
         return jsonify({
             "success": True,
@@ -82,9 +96,7 @@ def fill_pdf():
 
     try:
         doc = fitz.open(input_path)
-        page = doc[0]  # Punojmë me faqen e parë
 
-        # 1. Plotësojmë widget-et nëse ishin AcroForms
         filled_widgets = False
         for p in doc:
             for widget in p.widgets():
@@ -93,12 +105,11 @@ def fill_pdf():
                     widget.update()
                     filled_widgets = True
 
-        # 2. Nëse ishte PDF e zakonisht pa fusha, vizatojmë tekstin me koordinata
         if not filled_widgets:
+            page = doc[0]
             rect = page.rect
-            width, height = rect.width, rect.height
+            height = rect.height
 
-            # Vendosim tekstet te pozicionet përkatëse
             if user_inputs.get("text_1"):
                 page.insert_text((50, 100), user_inputs["text_1"], fontsize=14, color=(0, 0, 0))
             if user_inputs.get("text_2"):
