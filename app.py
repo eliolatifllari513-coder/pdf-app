@@ -11,14 +11,41 @@ OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-def format_label(field_name):
-    """Krijon një emër të lexueshëm nga emri teknik i fushës në PDF"""
-    clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', field_name)
-    clean = clean.replace('.', ' ').replace('_', ' ').replace('-', ' ').strip()
+# Harta e fushave inteligjente per te identifikuar cfare kerkon PDF-ja
+FIELD_MAPPING_RULES = [
+    # (Keywords te mundshme ne PDF, Label per perdoruesin, Kategoria)
+    (['name', 'full_name', 'first', 'last', 'emri', 'mbiemri', 'applicant'], 'Emri dhe Mbiemri / Full Name', 'personal'),
+    (['business', 'company', 'companyname', 'emri_biznesit', 'firm'], 'Emri i Biznesit / Business Name', 'personal'),
+    (['address', 'street', 'adresa', 'street_address', 'line1'], 'Adresa (Rruga, Ndërtesa)', 'address'),
+    (['city', 'town', 'qyteti'], 'Qyteti / City', 'address'),
+    (['state', 'province', 'shteti'], 'Shteti / State / Rajoni', 'address'),
+    (['zip', 'postal', 'kodi_postar', 'zipcode'], 'Kodi Postar / ZIP Code', 'address'),
+    (['ssn', 'social', 'ssn1', 'ssn2', 'ssn3'], 'Numri i Sigurimit Shoqëror (SSN)', 'identification'),
+    (['ein', 'employer', 'tin', 'nipt', 'tax_id', 'vat'], 'Numri i Identifikimit Tatimor (EIN / TIN / NIPT)', 'identification'),
+    (['date', 'data', 'dt'], 'Data / Date', 'general'),
+    (['email', 'e-mail'], 'E-mail', 'personal'),
+    (['phone', 'mobile', 'tel', 'celular'], 'Numri i Telefonit / Phone', 'personal'),
+    (['account', 'bank', 'llogari'], 'Numri i Llogarisë / Account Number', 'general')
+]
+
+def map_field_to_smart_label(raw_name):
+    """Përkthen fushën teknike të PDF-së në një pyetje të qartë për përdoruesin"""
+    clean_name = raw_name.lower().replace('.', '_').replace('-', '_')
     
-    if not clean or len(clean) < 2:
-        return field_name
-    return clean.title()
+    for keywords, human_label, category in FIELD_MAPPING_RULES:
+        for kw in keywords:
+            if kw in clean_name:
+                return human_label, category
+                
+    # Nëse nuk gjen përputhje me rregullat, krijon një emër të pastër
+    clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', raw_name, flags=re.IGNORECASE)
+    clean = clean.replace('.', ' ').replace('_', ' ').replace('-', ' ').strip()
+    clean = re.sub(r'^\d+\s*', '', clean).strip()
+    
+    if not clean or len(clean) < 2 or 'box' in clean.lower():
+        return None, None
+        
+    return clean.title(), 'general'
 
 @app.route("/")
 def index():
@@ -38,45 +65,46 @@ def extract_fields():
 
     try:
         doc = fitz.open(filepath)
-        field_list = []
-        seen_names = set()
-        count = 0
+        smart_fields = []
+        seen_labels = set()
 
-        # Kontrollojmë të gjitha faqet për fusha interaktive
         for page_idx, page in enumerate(doc):
             for widget in page.widgets():
                 fname = widget.field_name
-                if fname and fname not in seen_names:
-                    seen_names.add(fname)
-                    count += 1
+                if not fname:
+                    continue
+                
+                label, category = map_field_to_smart_label(fname)
+                
+                # Anashkalojmë fushat teknike ose të padobishme (si Boxes3A)
+                if not label or label in seen_labels:
+                    continue
                     
-                    # Caktojmë një label të lexueshëm
-                    label = format_label(fname)
-                    
-                    field_list.append({
-                        "id": fname,
-                        "key": label,
-                        "section": "general",
-                        "page": page_idx + 1
-                    })
+                seen_labels.add(label)
+                
+                smart_fields.append({
+                    "id": fname,
+                    "key": label,
+                    "section": category,
+                    "page": page_idx + 1
+                })
 
         doc.close()
 
-        # Nëse PDF nuk ka fusha interaktive (eshte PDF statike ose e skanuar)
-        is_interactive = True
-        if not field_list:
-            is_interactive = False
-            field_list = [
-                {"id": "custom_name", "key": "Emri dhe Mbiemri / Full Name", "section": "general"},
+        # Nëse PDF është statike ose nuk u gjetën dritare interaktive
+        if not smart_fields:
+            smart_fields = [
+                {"id": "custom_name", "key": "Emri dhe Mbiemri / Full Name", "section": "personal"},
+                {"id": "custom_address", "key": "Adresa / Address", "section": "address"},
+                {"id": "custom_tin", "key": "Numri i Identifikimit (TIN / SSN / NIPT)", "section": "identification"},
                 {"id": "custom_date", "key": "Data / Date", "section": "general"},
-                {"id": "custom_text", "key": "Teksti / Shenime", "section": "general"}
+                {"id": "custom_notes", "key": "Shënime ose Tekst shtesë", "section": "general"}
             ]
 
         return jsonify({
             "success": True,
             "filename": os.path.basename(filepath),
-            "is_interactive": is_interactive,
-            "fields": field_list
+            "fields": smart_fields
         })
 
     except Exception as e:
@@ -96,7 +124,7 @@ def fill_pdf():
         doc = fitz.open(input_path)
         filled_any = False
 
-        # 1. Plotësojmë fushat interaktive (AcroForms)
+        # Plotësojmë fushat në PDF
         for page in doc:
             for widget in page.widgets():
                 fname = widget.field_name
@@ -105,12 +133,12 @@ def fill_pdf():
                     widget.update()
                     filled_any = True
 
-        # 2. Nëse PDF nuk kishte fusha interaktive, i shkruajmë tekstet ne krye te faqes se pare
+        # Nëse është PDF statike (pa forma interaktive)
         if not filled_any:
             page = doc[0]
-            y_pos = 70
+            y_pos = 90
             for key, val in user_inputs.items():
-                if val.strip():
+                if val and str(val).strip():
                     page.insert_text((50, y_pos), f"{val}", fontsize=11, color=(0, 0, 0))
                     y_pos += 25
 
