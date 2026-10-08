@@ -37,7 +37,6 @@ def extract_fields():
 
         field_list = []
         for key, field_info in fields.items():
-            # Pastron emrin teknik të fushës që të duket më i lexueshëm
             clean_label = key.split('.')[-1].split('[')[0].replace('_', ' ')
             field_list.append({
                 "id": key,
