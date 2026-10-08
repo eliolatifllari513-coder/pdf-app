@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart PDF Assistant AI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
@@ -31,7 +31,7 @@
         }
 
         .logo { font-size: 1.35rem; font-weight: 800; background: var(--primary-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .container { max-width: 900px; margin: 2.5rem auto; padding: 0 1.5rem; flex: 1; }
+        .container { max-width: 900px; margin: 2.5rem auto; padding: 0 1.5rem; flex: 1; width: 100%; }
         .hero { text-align: center; margin-bottom: 2rem; }
         .hero h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 0.5rem; }
         .hero p { color: var(--text-muted); }
@@ -46,8 +46,7 @@
             transition: all 0.25s ease;
             box-shadow: var(--shadow-card);
         }
-
-        .upload-area:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .upload-area:hover, .upload-area.drag { border-color: var(--primary); transform: translateY(-2px); }
         .upload-area input { display: none; }
 
         .form-section {
@@ -58,7 +57,6 @@
             margin-bottom: 1.5rem;
             box-shadow: var(--shadow-card);
         }
-
         .form-section h3 {
             font-size: 1.1rem;
             font-weight: 700;
@@ -66,11 +64,10 @@
             border-bottom: 1px solid var(--border);
             padding-bottom: 0.75rem;
             margin-bottom: 1.25rem;
-            text-transform: capitalize;
         }
 
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
-        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } header { padding: 1rem 1.25rem; } }
 
         .field-group { margin-bottom: 0.25rem; }
         .field-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.45rem; }
@@ -82,9 +79,14 @@
         .btn-submit {
             background: var(--primary-gradient); color: white; border: none; padding: 1rem 2rem; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 1rem;
         }
+        .btn-submit:disabled { opacity: 0.6; cursor: wait; }
 
         .hidden { display: none; }
         .loading { text-align: center; padding: 2rem; font-weight: 600; color: var(--primary); }
+        .warning {
+            background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+            border-radius: 10px; padding: 0.9rem 1.1rem; margin-top: 1.5rem; font-size: 0.92rem;
+        }
 
         footer { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.9rem; background: #ffffff; margin-top: auto; border-top: 1px solid var(--border); }
     </style>
@@ -97,28 +99,31 @@
 
     <div class="container">
         <div class="hero">
-            <h1>Sistemi Inteligjent i Plotësimit të PDF</h1>
-            <p>AI analizon automatikisht dokumentin tuaj dhe nxjerr vetëm pyetjet e nevojshme.</p>
+            <h1>Sistemi Inteligjent i Plotësimit të Dokumenteve</h1>
+            <p>Ngarkoni një PDF ose një foto të formularit. AI e lexon dhe ju pyet vetëm ato që duhen.</p>
         </div>
 
-        <div class="upload-area" onclick="document.getElementById('pdf-file').click()">
-            <p style="font-weight: 600; font-size: 1.1rem;">Klikoni ose tërhiqni këtë skedarin tuaj PDF</p>
-            <small style="color: #94a3b8;">Formatet e mbështetura: .pdf</small>
-            <input type="file" id="pdf-file" accept=".pdf" onchange="uploadPDF()">
+        <div class="upload-area" id="upload-area">
+            <p style="font-weight: 600; font-size: 1.1rem;">Klikoni ose tërhiqni këtu PDF-në ose foton</p>
+            <small style="color: #94a3b8;">Formatet: PDF, JPG, PNG (deri në 20 MB)</small>
+            <input type="file" id="pdf-file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
         </div>
 
         <div id="loading-box" class="loading hidden">
-            🤖 AI po analizon strukturën dhe tekstin e PDF-së tuaj... Ju lutem prisni pak nga sekondi...
+            🤖 AI po lexon dokumentin tuaj... Për foto dhe skanime mund të duhet deri në një minutë.
         </div>
 
-        <form id="pdf-form" class="hidden" onsubmit="submitForm(event)" style="margin-top: 2rem;">
+        <div id="warning-box" class="warning hidden"></div>
+
+        <form id="pdf-form" class="hidden" style="margin-top: 2rem;">
             <div id="sections-wrapper"></div>
-            <button type="submit" class="btn-submit">Gjenero dhe Shkarko PDF-në e Plotësuar</button>
+            <button type="submit" id="submit-btn" class="btn-submit">Gjenero dhe Shkarko dokumentin e plotësuar</button>
         </form>
 
         <div id="download-box" class="hidden" style="text-align: center; margin-top: 2rem; padding: 2rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px;">
             <h3 style="color: #166534; margin-bottom: 1rem;">Dokumenti u plotësua me sukses!</h3>
-            <a id="download-link" href="#" class="btn-submit" style="text-decoration: none; display: inline-block; width: auto; padding: 0.8rem 2.5rem;">Shkarko Skedarin PDF</a>
+            <a id="download-link" href="#" class="btn-submit" style="text-decoration: none; display: inline-block; width: auto; padding: 0.8rem 2.5rem;">Shkarko PDF-në</a>
+            <p style="color: #64748b; font-size: 0.85rem; margin-top: 1rem;">Kontrolloni dokumentin para se ta dorëzoni: për foto, teksti mund të dalë pak i zhvendosur. Faqja e fundit përmban të gjitha përgjigjet tuaja.</p>
         </div>
     </div>
 
@@ -128,29 +133,62 @@
 
     <script>
         let currentFilename = '';
+        const fileInput = document.getElementById('pdf-file');
+        const area = document.getElementById('upload-area');
+        const warningBox = document.getElementById('warning-box');
 
-        async function uploadPDF() {
-            const fileInput = document.getElementById('pdf-file');
-            if (!fileInput.files[0]) return;
+        area.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', uploadFile);
+        area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag'); });
+        area.addEventListener('dragleave', () => area.classList.remove('drag'));
+        area.addEventListener('drop', e => {
+            e.preventDefault();
+            area.classList.remove('drag');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                uploadFile();
+            }
+        });
+
+        async function readJson(response) {
+            const text = await response.text();
+            try { return JSON.parse(text); }
+            catch { throw new Error('Serveri ktheu një gabim. Provo përsëri pas pak.'); }
+        }
+
+        async function uploadFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
 
             document.getElementById('loading-box').classList.remove('hidden');
             document.getElementById('pdf-form').classList.add('hidden');
             document.getElementById('download-box').classList.add('hidden');
+            warningBox.classList.add('hidden');
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', file);
 
-            const response = await fetch('/extract-fields', { method: 'POST', body: formData });
-            const data = await response.json();
+            try {
+                const response = await fetch('/extract-fields', { method: 'POST', body: formData });
+                const data = await readJson(response);
+                document.getElementById('loading-box').classList.add('hidden');
 
-            document.getElementById('loading-box').classList.add('hidden');
-
-            if (data.success) {
-                currentFilename = data.filename;
-                renderFields(data.fields);
-                document.getElementById('pdf-form').classList.remove('hidden');
-            } else {
-                alert(data.error);
+                if (data.success) {
+                    currentFilename = data.filename;
+                    renderFields(data.fields);
+                    document.getElementById('pdf-form').classList.remove('hidden');
+                    if (data.warning) {
+                        warningBox.textContent = '⚠️ ' + data.warning;
+                        warningBox.classList.remove('hidden');
+                    }
+                } else {
+                    alert(data.error || 'Ndodhi një gabim.');
+                }
+            } catch (err) {
+                document.getElementById('loading-box').classList.add('hidden');
+                alert(err.message);
+            } finally {
+                fileInput.value = '';
             }
         }
 
@@ -170,7 +208,7 @@
                 secDiv.className = 'form-section';
 
                 const title = document.createElement('h3');
-                title.innerText = secName.replace('_', ' ');
+                title.textContent = secName.replace(/_/g, ' ');
                 secDiv.appendChild(title);
 
                 const grid = document.createElement('div');
@@ -179,10 +217,17 @@
                 fieldGroup.forEach(f => {
                     const group = document.createElement('div');
                     group.className = 'field-group';
-                    group.innerHTML = `
-                        <label>${f.key}</label>
-                        <input type="text" name="${f.id}" placeholder="...">
-                    `;
+
+                    const label = document.createElement('label');
+                    label.textContent = f.key;
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.name = f.id;
+                    input.placeholder = '...';
+
+                    group.appendChild(label);
+                    group.appendChild(input);
                     grid.appendChild(group);
                 });
 
@@ -191,26 +236,35 @@
             }
         }
 
-        async function submitForm(e) {
+        document.getElementById('pdf-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+
             const inputs = {};
-            const formData = new FormData(e.target);
-            formData.forEach((value, key) => { inputs[key] = value; });
+            new FormData(e.target).forEach((value, key) => { inputs[key] = value; });
 
-            const response = await fetch('/fill-pdf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: currentFilename, inputs: inputs })
-            });
+            try {
+                const response = await fetch('/fill-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentFilename, inputs: inputs })
+                });
+                const data = await readJson(response);
 
-            const data = await response.json();
-            if (data.success) {
-                document.getElementById('download-link').href = data.download_url;
-                document.getElementById('download-box').classList.remove('hidden');
-            } else {
-                alert(data.error);
+                if (data.success) {
+                    document.getElementById('download-link').href = data.download_url;
+                    document.getElementById('download-box').classList.remove('hidden');
+                } else {
+                    alert(data.error || 'Ndodhi një gabim.');
+                }
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btn.disabled = false;
             }
-        }
+        });
     </script>
 </body>
 </html>
+
