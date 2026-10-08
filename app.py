@@ -1,7 +1,8 @@
 import os
-import re
+import json
 import fitz  # PyMuPDF
 from flask import Flask, render_template, request, send_file, jsonify
+from groq import Groq
 
 app = Flask(__name__)
 
@@ -11,41 +12,60 @@ OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Harta e fushave inteligjente per te identifikuar cfare kerkon PDF-ja
-FIELD_MAPPING_RULES = [
-    # (Keywords te mundshme ne PDF, Label per perdoruesin, Kategoria)
-    (['name', 'full_name', 'first', 'last', 'emri', 'mbiemri', 'applicant'], 'Emri dhe Mbiemri / Full Name', 'personal'),
-    (['business', 'company', 'companyname', 'emri_biznesit', 'firm'], 'Emri i Biznesit / Business Name', 'personal'),
-    (['address', 'street', 'adresa', 'street_address', 'line1'], 'Adresa (Rruga, Ndërtesa)', 'address'),
-    (['city', 'town', 'qyteti'], 'Qyteti / City', 'address'),
-    (['state', 'province', 'shteti'], 'Shteti / State / Rajoni', 'address'),
-    (['zip', 'postal', 'kodi_postar', 'zipcode'], 'Kodi Postar / ZIP Code', 'address'),
-    (['ssn', 'social', 'ssn1', 'ssn2', 'ssn3'], 'Numri i Sigurimit Shoqëror (SSN)', 'identification'),
-    (['ein', 'employer', 'tin', 'nipt', 'tax_id', 'vat'], 'Numri i Identifikimit Tatimor (EIN / TIN / NIPT)', 'identification'),
-    (['date', 'data', 'dt'], 'Data / Date', 'general'),
-    (['email', 'e-mail'], 'E-mail', 'personal'),
-    (['phone', 'mobile', 'tel', 'celular'], 'Numri i Telefonit / Phone', 'personal'),
-    (['account', 'bank', 'llogari'], 'Numri i Llogarisë / Account Number', 'general')
-]
+# Vendos Groq API Key (Mund ta vendosësh edhe si Environment Variable ne Render)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "KOPJO_KETU_GROQ_API_KEY_TUAN")
 
-def map_field_to_smart_label(raw_name):
-    """Përkthen fushën teknike të PDF-së në një pyetje të qartë për përdoruesin"""
-    clean_name = raw_name.lower().replace('.', '_').replace('-', '_')
-    
-    for keywords, human_label, category in FIELD_MAPPING_RULES:
-        for kw in keywords:
-            if kw in clean_name:
-                return human_label, category
-                
-    # Nëse nuk gjen përputhje me rregullat, krijon një emër të pastër
-    clean = re.sub(r'topmostSubform\[\d+\]|Page\d+\[\d+\]|ReadOrder\[\d+\]|\w+\[\d+\]', '', raw_name, flags=re.IGNORECASE)
-    clean = clean.replace('.', ' ').replace('_', ' ').replace('-', ' ').strip()
-    clean = re.sub(r'^\d+\s*', '', clean).strip()
-    
-    if not clean or len(clean) < 2 or 'box' in clean.lower():
-        return None, None
+def analyze_pdf_with_groq(fields_list, raw_text=""):
+    """Dërgon fushat teknike te Groq AI dhe merr mbrapsht pyetje të kuptueshme për përdoruesin."""
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
         
-    return clean.title(), 'general'
+        prompt = f"""
+        You are an intelligent PDF Form Assistant.
+        Analyzed PDF Fields (Technical names): {json.dumps(fields_list)}
+        PDF Context Text Sample: {raw_text[:1000]}
+
+        Task:
+        1. Identify what this PDF document is about.
+        2. Map the technical field names into clear, natural, human-friendly questions/labels (e.g. "Emri dhe Mbiemri", "Adresa e banimit", "Numri i Identifikimit (TIN/SSN/NIPT)").
+        3. Ignore duplicate fields, signature fields, or irrelevant layout boxes.
+        4. Group them into logical sections: "personal", "address", "identification", or "general".
+
+        Return ONLY a JSON array of objects with this EXACT structure (no markdown, no explanations):
+        [
+          {{
+            "id": "technical_field_id_from_input",
+            "key": "Human friendly label in Albanian or English",
+            "section": "personal"
+          }}
+        ]
+        """
+
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "You output strictly valid JSON format."},
+                {"role": "user", "content": prompt}
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+
+        response_content = chat_completion.choices[0].message.content
+        data = json.loads(response_content)
+        
+        # Nëse përgjigjja është e mbështjellë në një çelës si "fields"
+        if isinstance(data, dict):
+            return data.get("fields", list(data.values())[0] if data else [])
+        return data
+
+    except Exception as e:
+        print(f"Groq AI Error: {e}")
+        # Fallback nëse AI dështon ose nuk ka API Key valid
+        return [
+            {"id": f["id"], "key": f["id"].replace('_', ' ').title(), "section": "general"}
+            for f in fields_list[:8]
+        ]
 
 @app.route("/")
 def index():
@@ -65,40 +85,28 @@ def extract_fields():
 
     try:
         doc = fitz.open(filepath)
-        smart_fields = []
-        seen_labels = set()
+        raw_fields = []
+        raw_text = ""
 
-        for page_idx, page in enumerate(doc):
+        # Skanojmë faqet dhe nxjerrim tekstin si dhe fushat interaktive
+        for page in doc:
+            raw_text += page.get_text() + "\n"
             for widget in page.widgets():
-                fname = widget.field_name
-                if not fname:
-                    continue
-                
-                label, category = map_field_to_smart_label(fname)
-                
-                # Anashkalojmë fushat teknike ose të padobishme (si Boxes3A)
-                if not label or label in seen_labels:
-                    continue
-                    
-                seen_labels.add(label)
-                
-                smart_fields.append({
-                    "id": fname,
-                    "key": label,
-                    "section": category,
-                    "page": page_idx + 1
-                })
+                if widget.field_name:
+                    raw_fields.append({"id": widget.field_name})
 
         doc.close()
 
-        # Nëse PDF është statike ose nuk u gjetën dritare interaktive
-        if not smart_fields:
+        # Dërgojmë të dhënat te Groq AI për analizë inteligjente
+        if raw_fields:
+            smart_fields = analyze_pdf_with_groq(raw_fields, raw_text)
+        else:
+            # Nëse është PDF e skanuar / statike (pa forma interaktive)
             smart_fields = [
                 {"id": "custom_name", "key": "Emri dhe Mbiemri / Full Name", "section": "personal"},
                 {"id": "custom_address", "key": "Adresa / Address", "section": "address"},
-                {"id": "custom_tin", "key": "Numri i Identifikimit (TIN / SSN / NIPT)", "section": "identification"},
-                {"id": "custom_date", "key": "Data / Date", "section": "general"},
-                {"id": "custom_notes", "key": "Shënime ose Tekst shtesë", "section": "general"}
+                {"id": "custom_id", "key": "Numri i Identifikimit (SSN/EIN/NIPT)", "section": "identification"},
+                {"id": "custom_date", "key": "Data / Date", "section": "general"}
             ]
 
         return jsonify({
@@ -124,7 +132,7 @@ def fill_pdf():
         doc = fitz.open(input_path)
         filled_any = False
 
-        # Plotësojmë fushat në PDF
+        # Plotësojmë fushat ekzakte të PDF-së
         for page in doc:
             for widget in page.widgets():
                 fname = widget.field_name
@@ -133,10 +141,10 @@ def fill_pdf():
                     widget.update()
                     filled_any = True
 
-        # Nëse është PDF statike (pa forma interaktive)
+        # Nëse nuk kishte fusha interaktive (PDF statike), shkruajmë tekstin në dokument
         if not filled_any:
             page = doc[0]
-            y_pos = 90
+            y_pos = 100
             for key, val in user_inputs.items():
                 if val and str(val).strip():
                     page.insert_text((50, y_pos), f"{val}", fontsize=11, color=(0, 0, 0))
